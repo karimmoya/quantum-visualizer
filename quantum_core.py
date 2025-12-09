@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 def _combine_operators(operations_list: list) -> np.ndarray:
@@ -6,6 +8,17 @@ def _combine_operators(operations_list: list) -> np.ndarray:
     for op in reversed_ops[1:]:
         partial_result = np.kron(partial_result, op)
     return partial_result
+
+def calculate_probabilities(current_state: np.ndarray) -> np.ndarray:
+    absolute_value = np.absolute(current_state)
+    probabilities = absolute_value ** 2
+    return probabilities
+
+def measure_shot(final_probabilities: np.ndarray) -> np.ndarray:
+    #continue
+    r = random.random()
+    collapse = r < final_probabilities
+    return collapse
 
 def execute_circuit(num_qubits: int, operations: list) -> np.ndarray:
     dimension = 2 ** num_qubits
@@ -16,7 +29,7 @@ def execute_circuit(num_qubits: int, operations: list) -> np.ndarray:
     hadamard = hadamard * 1 / np.sqrt(2)
 
     identity = np.array([[1, 0], [0, 1]])
-
+    z_gate = np.array([[1, 0], [0, -1]])
     y_gate = np.array([[0, -1j], [1j, 0]])
 
     x_not = np.array([[0, 1], [1, 0]])
@@ -82,12 +95,29 @@ def execute_circuit(num_qubits: int, operations: list) -> np.ndarray:
 
             operation_result = _combine_operators(operations_list)
         elif operation["gate"] == "z":
-            # continue.
-           pass
+            target_qubit = operation["target"]
+
+            operations_list = []
+
+            for qubit_index in range(num_qubits):
+                if qubit_index == target_qubit:
+                    operations_list.append(z_gate)
+                else:
+                    operations_list.append(identity)
+
+            operation_result = _combine_operators(operations_list)
         if operation_result is not None:
             current_state = np.dot(operation_result, current_state)
 
     return current_state
 
-test = execute_circuit(2, operations = [{ "gate": "x", "target": 1 }])
-print(test)
+operations = [
+    {'gate': 'h', 'target': 0},
+    {'gate': 'z', 'target': 0}
+]
+
+circuit = execute_circuit(num_qubits=1, operations=operations)
+final_probabilities = calculate_probabilities(current_state=circuit)
+final_result = measure_shot(final_probabilities=final_probabilities)
+
+print(final_result)
