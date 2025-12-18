@@ -1,125 +1,128 @@
 import random
-from typing import List, Dict, Any
 import numpy as np
 
 
-IDENTITY = np.array([[1, 0], [0, 1]], dtype=np.complex128)
-H_GATE = np.array([[1, 1], [1, -1]], dtype=np.complex128) / np.sqrt(2)
-X_GATE = np.array([[0, 1], [1, 0]], dtype=np.complex128)
-Y_GATE = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)
-Z_GATE = np.array([[1, 0], [0, -1]], dtype=np.complex128)
-
-P0 = np.array([[1, 0], [0, 0]], dtype=np.complex128)
-P1 = np.array([[0, 0], [0, 1]], dtype=np.complex128)
-
-SINGLE_QUBIT_GATES = {
-    "h": H_GATE,
-    "x": X_GATE,
-    "y": Y_GATE,
-    "z": Z_GATE
-}
-
-
-def _combine_operators(operations_list: List[np.ndarray]) -> np.ndarray:
-    reversed_ops = operations_list[::-1]
-
-    full_operator = reversed_ops[0]
+def _combine_operators(operations_list: list) -> np.ndarray:
+    reversed_ops = list(reversed(operations_list))
+    partial_result = reversed_ops[0]
     for op in reversed_ops[1:]:
-        full_operator = np.kron(full_operator, op)
-
-    return full_operator
-
-
-def _build_single_qubit_operator(num_qubits: int, target_qubit: int, gate_matrix: np.ndarray) -> np.ndarray:
-    ops_list = []
-    for i in range(num_qubits):
-        if i == target_qubit:
-            ops_list.append(gate_matrix)
-        else:
-            ops_list.append(IDENTITY)
-
-    return _combine_operators(ops_list)
+        partial_result = np.kron(partial_result, op)
+    return partial_result
 
 
-def _build_cnot_operator(num_qubits: int, control: int, target: int) -> np.ndarray:
-    ops_zero = []
-    ops_one = []
-
-    for i in range(num_qubits):
-        if i == control:
-            ops_zero.append(P0)
-            ops_one.append(P1)
-        elif i == target:
-            ops_zero.append(IDENTITY)
-            ops_one.append(X_GATE)
-        else:
-            ops_zero.append(IDENTITY)
-            ops_one.append(IDENTITY)
-
-    operator_zero = _combine_operators(ops_zero)
-    operator_one = _combine_operators(ops_one)
-
-    return operator_zero + operator_one
-
-
-def calculate_probabilities(state_vector: np.ndarray) -> np.ndarray:
-    return np.abs(state_vector) ** 2
+def calculate_probabilities(current_state: np.ndarray) -> np.ndarray:
+    absolute_value = np.absolute(current_state)
+    probabilities = absolute_value ** 2
+    return probabilities
 
 
 def measure_shot(probabilities: np.ndarray) -> int:
-    random_val = random.random()
-    cumulative = 0.0
-
-    for i, p in enumerate(probabilities):
-        cumulative += p
-        if random_val < cumulative:
+    random_shot = random.random()
+    cumulative_probability = 0.0
+    for i, probability in enumerate(probabilities):
+        cumulative_probability += probability
+        if random_shot < cumulative_probability:
             return i
+    return len(probabilities) - 1
 
-    return len(probabilities) - 1  # Fallback seguro (no debería ocurrir)
 
+def execute_circuit(num_qubits: int, operations: list) -> np.ndarray:
+    dimension = 2 ** num_qubits
+    current_state = np.zeros(dimension, dtype=complex)
+    current_state[0] = 1
 
-def execute_circuit(num_qubits: int, operations: List[Dict[str, Any]]) -> np.ndarray:
-    dim = 2 ** num_qubits
-    current_state = np.zeros(dim, dtype=np.complex128)
-    current_state[0] = 1.0 + 0j
+    hadamard = np.array([[1, 1], [1, -1]]) * 1 / np.sqrt(2)
+    identity = np.array([[1, 0], [0, 1]])
+    z_gate = np.array([[1, 0], [0, -1]])
+    y_gate = np.array([[0, -1j], [1j, 0]])
+    x_not = np.array([[0, 1], [1, 0]])
 
-    for op in operations:
-        gate_type = op["gate"]
-        operator = None
+    p_0 = np.array([[1, 0], [0, 0]])
+    p_1 = np.array([[0, 0], [0, 1]])
 
-        if gate_type in SINGLE_QUBIT_GATES:
-            operator = _build_single_qubit_operator(
-                num_qubits,
-                op["target"],
-                SINGLE_QUBIT_GATES[gate_type]
-            )
+    for operation in operations:
+        operation_result = None
 
-        elif gate_type == "cx":
-            operator = _build_cnot_operator(
-                num_qubits,
-                op["control"],
-                op["target"]
-            )
+        if operation["gate"] == "h":
+            target_qubit = operation["target"]
+            operations_list = []
+            for qubit_index in range(num_qubits):
+                if qubit_index == target_qubit:
+                    operations_list.append(hadamard)
+                else:
+                    operations_list.append(identity)
+            operation_result = _combine_operators(operations_list)
 
-        if operator is not None:
-            current_state = np.dot(operator, current_state)
-        else:
-            print(f"Warning: Operación '{gate_type}' no soportada o inválida.")
+        elif operation["gate"] == "cx":
+            parte_cero = []
+            parte_uno = []
+            target_qubit = operation["target"]
+            control = operation["control"]
+            for qubit_index in range(num_qubits):
+                if qubit_index == control:
+                    parte_cero.append(p_0)
+                    parte_uno.append(p_1)
+                elif qubit_index == target_qubit:
+                    parte_cero.append(identity)
+                    parte_uno.append(x_not)
+                else:
+                    parte_cero.append(identity)
+                    parte_uno.append(identity)
+
+            op_cero_final = _combine_operators(parte_cero)
+            op_uno_final = _combine_operators(parte_uno)
+            operation_result = op_cero_final + op_uno_final
+
+        elif operation["gate"] == "x":
+            target_qubit = operation["target"]
+            operations_list = []
+            for qubit_index in range(num_qubits):
+                if qubit_index == target_qubit:
+                    operations_list.append(x_not)
+                else:
+                    operations_list.append(identity)
+            operation_result = _combine_operators(operations_list)
+
+        elif operation["gate"] == "y":
+            target_qubit = operation["target"]
+            operations_list = []
+            for qubit_index in range(num_qubits):
+                if qubit_index == target_qubit:
+                    operations_list.append(y_gate)
+                else:
+                    operations_list.append(identity)
+            operation_result = _combine_operators(operations_list)
+
+        elif operation["gate"] == "z":
+            target_qubit = operation["target"]
+            operations_list = []
+            for qubit_index in range(num_qubits):
+                if qubit_index == target_qubit:
+                    operations_list.append(z_gate)
+                else:
+                    operations_list.append(identity)
+            operation_result = _combine_operators(operations_list)
+
+        if operation_result is not None:
+            current_state = np.dot(operation_result, current_state)
 
     return current_state
 
 
-# --- TESTING ---
-if __name__ == "__main__":
-    test_ops = [
+
+if __name__ == '__main__':
+    operations = [
         {'gate': 'h', 'target': 0},
         {'gate': 'cx', 'control': 0, 'target': 1}
     ]
 
-    final_state = execute_circuit(num_qubits=2, operations=test_ops)
-    probs = calculate_probabilities(final_state)
-    result = measure_shot(probs)
 
-    print(f"Estado Final: {final_state}")
+    state = execute_circuit(num_qubits=2, operations=operations)
+
+    probs = calculate_probabilities(current_state=state)
+
+    shot_result = measure_shot(probabilities=probs)
+
+    print(f"Estado Final: {state}")
     print(f"Probabilidades: {probs}")
-    print(f"Resultado Medición: {result}")
+    print(f"Resultado de la medición: {shot_result}")
