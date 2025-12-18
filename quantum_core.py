@@ -26,6 +26,18 @@ def measure_shot(probabilities: np.ndarray) -> int:
     return len(probabilities) - 1
 
 
+def get_counts(probabilities: np.ndarray, shots: int = 1000) -> dict:
+    histogram = {}
+    for shot in range(shots):
+        shot_index = measure_shot(probabilities=probabilities)
+        key = str(shot_index)
+        if key in histogram:
+            histogram[key] = histogram[key] + 1
+        else:
+            histogram[key] = 1
+    return histogram
+
+
 def execute_circuit(num_qubits: int, operations: list) -> np.ndarray:
     dimension = 2 ** num_qubits
     current_state = np.zeros(dimension, dtype=complex)
@@ -109,20 +121,18 @@ def execute_circuit(num_qubits: int, operations: list) -> np.ndarray:
     return current_state
 
 
-
 if __name__ == '__main__':
     operations = [
         {'gate': 'h', 'target': 0},
         {'gate': 'cx', 'control': 0, 'target': 1}
     ]
 
-
     state = execute_circuit(num_qubits=2, operations=operations)
 
     probs = calculate_probabilities(current_state=state)
 
-    shot_result = measure_shot(probabilities=probs)
+    histogram = get_counts(probabilities=probs, shots=1000)
 
     print(f"Estado Final: {state}")
     print(f"Probabilidades: {probs}")
-    print(f"Resultado de la medición: {shot_result}")
+    print(f"Histograma: {histogram}")
